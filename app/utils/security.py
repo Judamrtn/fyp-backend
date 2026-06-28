@@ -1,10 +1,14 @@
+"""
+JWT creation/verification and bcrypt password helpers.
+"""
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Literal
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from app.config import settings
+import re
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 TokenType = Literal["access", "refresh", "reset"]
 
@@ -17,6 +21,30 @@ def hash_password(plain: str) -> str:
 
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
+
+
+def check_password_strength(password: str) -> list:
+    """
+    Returns list of errors. Empty list means password is strong.
+    Rules:
+      - At least 8 characters
+      - At least one uppercase letter
+      - At least one lowercase letter
+      - At least one number
+      - At least one special character
+    """
+    errors = []
+    if len(password) < 8:
+        errors.append("at least 8 characters")
+    if not re.search(r"[A-Z]", password):
+        errors.append("at least one uppercase letter")
+    if not re.search(r"[a-z]", password):
+        errors.append("at least one lowercase letter")
+    if not re.search(r"\d", password):
+        errors.append("at least one number")
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        errors.append("at least one special character (!@#$%^&*)")
+    return errors
 
 
 # ── JWT ───────────────────────────────────────────────────────────────────────
@@ -49,6 +77,7 @@ def create_reset_token(user_id: str) -> str:
 
 
 def decode_token(token: str) -> Optional[dict]:
+    """Returns decoded payload or None if invalid/expired."""
     try:
         return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
     except JWTError:
@@ -56,6 +85,7 @@ def decode_token(token: str) -> Optional[dict]:
 
 
 def decode_token_strict(token: str, expected_type: TokenType) -> Optional[dict]:
+    """Decode and enforce token type."""
     payload = decode_token(token)
     if payload and payload.get("type") == expected_type:
         return payload

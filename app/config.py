@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
-from typing import List
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -10,56 +10,54 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    # Application
+    # ── Application ─────────────────────────────────────────────
     app_name: str = "FYP Topic Repository"
     app_env: str = "development"
     debug: bool = True
     secret_key: str = "changeme"
     allowed_origins: str = "http://localhost:3000,http://localhost:8081"
 
-    # Database
-    database_url: str = "postgresql://postgres:password@localhost:5432/fyp_repository"
-    async_database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/fyp_repository"
+    # ── Database (IMPORTANT: no localhost fallback in production) ─
+    database_url: str
+    async_database_url: Optional[str] = None
 
-    # JWT
+    # ── JWT ─────────────────────────────────────────────────────
     jwt_secret_key: str = "changeme-jwt"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
 
-    # File Storage
-    storage_provider: str = "local"          # s3 | minio | local
+    # ── File Storage ────────────────────────────────────────────
+    storage_provider: str = "local"  # s3 | minio | local
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
     aws_region: str = "us-east-1"
     s3_bucket_name: str = "fyp-documents"
-    s3_endpoint_url: str = ""                # MinIO or custom
+    s3_endpoint_url: str = ""
     signed_url_expire_seconds: int = 900
 
-    # File upload
+    # ── File upload ─────────────────────────────────────────────
     max_file_size_mb: int = 10
     allowed_file_types: str = (
         "application/pdf,"
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
 
-    # Similarity
+    # ── Similarity ──────────────────────────────────────────────
     default_similarity_threshold: int = 80
     similarity_flag_threshold: int = 80
 
-    # Password Reset
+    # ── Password Reset ──────────────────────────────────────────
     reset_token_expire_minutes: int = 30
     frontend_url: str = "http://localhost:8081"
 
-    # ── Derived helpers ─────────────────────────────────────────────────────────
-
-    
-    # HuggingFace Similarity API
+    # ── AI / HuggingFace ────────────────────────────────────────
     hf_api_key: str = ""
     hf_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     hf_api_url: str = "https://api-inference.huggingface.co/pipeline/feature-extraction"
     use_ai_similarity: bool = True
 
+    # ── Helpers ────────────────────────────────────────────────
     @property
     def allowed_origins_list(self) -> List[str]:
         return [o.strip() for o in self.allowed_origins.split(",")]
@@ -73,9 +71,9 @@ class Settings(BaseSettings):
         return self.max_file_size_mb * 1024 * 1024
 
 
+# ── Singleton settings (cached) ─────────────────────────────────
 @lru_cache()
 def get_settings() -> Settings:
-    """Cached settings instance — import this everywhere."""
     return Settings()
 
 

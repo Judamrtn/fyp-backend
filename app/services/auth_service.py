@@ -34,6 +34,7 @@ from app.utils.security import (
     hash_password, verify_password,
     create_access_token, create_refresh_token,
     create_reset_token, decode_token_strict,
+    check_password_strength,
 )
 
 
@@ -65,6 +66,14 @@ class AuthService:
 
         if data.current_password == data.new_password:
             raise HTTPException(status_code=400, detail="New password must differ from current password.")
+
+        # Check password strength
+        strength_errors = check_password_strength(data.new_password)
+        if strength_errors:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Password too weak. Must contain: {', '.join(strength_errors)}"
+            )
 
         user.password_hash       = hash_password(data.new_password)
         user.must_change_password = False

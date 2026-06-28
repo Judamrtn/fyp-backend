@@ -137,3 +137,65 @@ def _log(db: Session, actor: User, action: str,
         extra_data  = extra_data,
     ))
     db.commit()
+
+
+# ── Bulk actions ──────────────────────────────────────────────────────────────
+
+class BulkUserAction(BaseModel):
+    user_ids:  List[uuid.UUID]
+    action:    str   # "activate" | "deactivate" | "delete"
+
+
+@router.post("/users/bulk-action", summary="Bulk activate/deactivate/delete users")
+def bulk_user_action(
+    data: BulkUserAction,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_roles(UserRole.ADMIN)),
+):
+    if data.action not in ("activate", "deactivate", "delete"):
+        raise HTTPException(400, "Action must be: activate, deactivate, or delete.")
+
+    users = db.query(User).filter(User.id.in_(data.user_ids)).all()
+    if not users:
+        raise HTTPException(404, "No users found.")
+
+    count = 0
+    for u in users:
+        if u.role == UserRole.ADMIN:
+            continue   # Never bulk-action other admins
+        if data.action == "activate":
+            u.is_active = True
+        elif data.action == "deactivate":
+            u.is_active = False
+        elif data.action == "delete":
+            u.soft_delete()
+        count += 1
+
+    db.commit()
+    _log(db, actor, f"user.bulk_{data.action}", "user", None,
+         {"count": count, "action": data.action})
+
+    return ok(
+        data={"affected": count},
+        message=f"{count} users {data.action}d successfully."
+    )
+
+
+# ── System config ─────────────────────────────────────────────────────────────
+
+@router.get("/system-info", summary="Get system configuration info")
+def system_info(
+    db: Session = Depends(get_db),
+    _=admin_only,
+):
+    from app.config import settings
+    return ok(data={
+        "app_name":              settings.app_name,
+        "app_env":               settings.app_env,
+        "storage_provider":      settings.storage_provider,
+        "similarity_engine":     "hybrid" if settings.hf_api_key else "tfidf_only",
+        "default_threshold":     settings.default_similarity_threshold,
+        "max_file_size_mb":      settings.max_file_size_mb,
+        "access_token_minutes":  settings.access_token_expire_minutes,
+        "refresh_token_days":    settings.refresh_token_expire_days,
+    })
