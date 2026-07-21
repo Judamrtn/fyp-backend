@@ -1,9 +1,11 @@
 # environment
 .env
+.env.*
+.env.production
 
 # virtual environment
+venv/
 venv311/
-
 # Python cache
 __pycache__/
 *.pyc
